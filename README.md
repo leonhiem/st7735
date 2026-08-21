@@ -21,7 +21,9 @@ GND         ->  GND
 
 - **st7735.h/c** - Display driver with SPI communication
 - **font.h** - 5x7 ASCII font for text rendering
-- **emojis.h** - Three full-screen emoji generators (happy, cold, hot)
+- **emojis.h** - Three full-screen emoji generators, drawn procedurally (happy, cold, hot)
+- **emoji_bitmaps_real.h** - Same three emojis as full-screen RGB565 bitmaps (OpenMoji artwork)
+- **emoji_display.h** - Picks between the two above via `EMOJI_USE_BITMAPS` (see below)
 - **main.c** - Example program
 
 ## CMakeLists.txt Integration
@@ -75,10 +77,22 @@ st7735_backlight(false); // Off
 ```
 
 ### Emoji Functions
+
+`main.c` calls `display_emoji_happy()` / `display_emoji_cold()` / `display_emoji_hot()` from
+`emoji_display.h`, which forwards to one of two implementations depending on
+`EMOJI_USE_BITMAPS` (see "Procedural drawing vs. bitmaps" below):
+
 ```c
-draw_emoji_happy();  // Yellow happy face
-draw_emoji_cold();   // Blue freezing face
-draw_emoji_hot();    // Red sweating face
+display_emoji_happy();  // Yellow happy face
+display_emoji_cold();   // Blue freezing face
+display_emoji_hot();    // Red sweating face
+```
+
+You can still call the underlying implementations directly if you want both at once:
+
+```c
+draw_emoji_happy();                       // procedural, from emojis.h
+st7735_draw_bitmap_fullscreen(emoji_hot); // bitmap, from emoji_bitmaps_real.h
 ```
 
 ### Predefined Colors (RGB565)
@@ -114,10 +128,44 @@ To create your own graphics:
 - Use `st7735_draw_pixel()` for individual pixels
 - Or create procedural drawing functions like the emojis
 
+## Procedural Drawing vs. Bitmaps
+
+There are two ways to render the three emojis, both wired up through `emoji_display.h`:
+
+| Mode | Source | Look | Flash | RAM |
+|---|---|---|---|---|
+| Procedural (default) | `emojis.h` | hand-drawn circles/primitives | ~few KB of code | negligible |
+| Bitmap | `emoji_bitmaps_real.h` | OpenMoji artwork, much more polished | ~123KB (`const`, stored in flash) | negligible — read directly from flash, never copied to RAM |
+
+Both live in this repo side by side; only one is compiled into the running image at a time,
+selected by the `EMOJI_USE_BITMAPS` preprocessor define.
+
+**To switch to the bitmap emojis**, configure with the CMake option:
+
+```bash
+cd build
+cmake -DEMOJI_USE_BITMAPS=ON ..
+make -j4
+```
+
+Run `cmake -DEMOJI_USE_BITMAPS=OFF ..` (or just delete `build/` and reconfigure) to go back to
+procedural drawing — it's the default so an unconfigured build already uses it.
+
+Without CMake, you can get the same effect by defining it before `emoji_display.h` is included,
+e.g. adding `#define EMOJI_USE_BITMAPS 1` at the top of `main.c`, or passing
+`-DEMOJI_USE_BITMAPS=1` on the compiler command line.
+
+The bitmaps in `emoji_bitmaps_real.h` are from [OpenMoji](https://openmoji.org/)
+(😊 U+1F642, 🥶 U+1F976, 🥵 U+1F975), resized to 128×128 and centered on the 128×160 panel.
+License: CC BY-SA 4.0 — free to use with attribution. `preview_happy.png`, `preview_cold.png`
+and `preview_hot.png` show how they look before flashing.
+
 ## Memory Usage
 
-The procedural emoji approach saves significant RAM compared to storing bitmaps:
-- Bitmap approach: 3 × 128 × 160 × 2 bytes = 122,880 bytes
+The procedural emoji approach saves significant flash compared to storing bitmaps:
+- Bitmap approach: 3 × 128 × 160 × 2 bytes ≈ 122,880 bytes of flash
 - Procedural approach: ~few KB of code
+
+Neither approach uses meaningful RAM — bitmaps are `const` and read straight from flash.
 
 Enjoy your LCD display!

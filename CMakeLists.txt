@@ -10,11 +10,19 @@ set(CMAKE_CXX_STANDARD 17)
 set(PICO_CXX_ENABLE_EXCEPTIONS 1)
 pico_sdk_init()
 
+# Emoji rendering mode: OFF (default) = procedural drawing (emojis.h)
+#                       ON             = OpenMoji bitmaps (emoji_bitmaps_real.h)
+# Switch with: cmake -DEMOJI_USE_BITMAPS=ON ..
+option(EMOJI_USE_BITMAPS "Render emojis from OpenMoji bitmaps instead of procedural drawings" OFF)
+
 add_executable(st7735
-emojis.h  font.h  main.c  st7735.c  st7735.h
+emojis.h  emoji_bitmaps_real.h  emoji_display.h  font.h  main.c  st7735.c  st7735.h
 
 )
 
+if(EMOJI_USE_BITMAPS)
+    target_compile_definitions(st7735 PUBLIC EMOJI_USE_BITMAPS=1)
+endif()
 
 target_include_directories(st7735 PUBLIC)
 target_link_directories(st7735 PUBLIC)

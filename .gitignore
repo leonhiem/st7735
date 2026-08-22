@@ -1,6 +1,10 @@
 # Build artifacts
 build/
 
+# Regenerable art previews (rerun input/art/render_*.py to recreate)
+input/art/out/
+__pycache__/
+
 # Editor backups/swap files
 *~
 .*.swp

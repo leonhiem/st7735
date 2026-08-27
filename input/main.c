@@ -186,6 +186,12 @@ int main(void) {
     uint32_t last_print_ms = step_started_ms;
     uint32_t loop_count = 0;
 
+    /* simulate a push-button pulse on apgar_start: fires once at boot
+       (birth) only, then the clock runs untouched - so the real 1/5/10
+       minute checkpoints can be watched without the 10-step demo loop
+       (40 s) restarting it along the way */
+    bool apgar_pulse = true;
+
     printf("step %lu: %s\n", (unsigned long)step_index, demo[step_index].name);
 
     while (true) {
@@ -198,11 +204,12 @@ int main(void) {
             printf("step %lu: %s\n", (unsigned long)step_index, demo[step_index].name);
         }
 
-        /* render current step, with a live-counting APGAR clock (elapsed
-           time since boot) laid over whichever demo state is active */
+        /* render current step; apgar_pulse is a one-shot trigger, the
+           display owns the actual elapsed-time clock itself */
         warmer_display_state_t state = demo[step_index].state;
-        state.apgar_seconds = now / 1000;
+        state.apgar_start = apgar_pulse;
         display_update(&state, now);
+        apgar_pulse = false;
 
         loop_count++;
 

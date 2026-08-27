@@ -63,6 +63,14 @@ typedef struct {
     bool                   blink_alarm_phase;
     uint32_t               last_warn_ms;
     uint32_t               last_alarm_ms;
+
+    /* APGAR clock, owned entirely by the display: the caller just
+     * pulses state->apgar_start true on a button press (rising edge
+     * (re)starts the clock at 0); everything else - elapsed time,
+     * checkpoint flashing - is computed here. */
+    bool                   apgar_running;
+    uint32_t               apgar_start_ms;
+    uint32_t               last_apgar_elapsed_s;
 } display_ctx_t;
 
 static display_ctx_t ctx;
@@ -126,9 +134,9 @@ static void render_heat_indicator(const warmer_display_state_t *s) {
                            s->heater_percent, s->heater_failed, BG_COLOR);
 }
 
-static void render_apgar_timer(const warmer_display_state_t *s, bool blink_phase) {
-    bool in_window = apgar_timer_in_checkpoint_window(s->apgar_seconds);
-    apgar_timer_draw(TIMER_CX, TIMER_Y, s->apgar_seconds,
+static void render_apgar_timer(uint32_t elapsed_s, bool blink_phase) {
+    bool in_window = apgar_timer_in_checkpoint_window(elapsed_s);
+    apgar_timer_draw(TIMER_CX, TIMER_Y, elapsed_s,
                       in_window && blink_phase, BG_COLOR);
 }
 
@@ -153,7 +161,7 @@ void display_init(void) {
     render_alarm_icon(&blank, true);
     render_baby(&blank);
     render_heat_indicator(&blank);
-    render_apgar_timer(&blank, true);
+    render_apgar_timer(0, true);
 
     memset(&ctx, 0, sizeof(ctx));
     ctx.initialized       = true;
@@ -206,10 +214,22 @@ void display_update(const warmer_display_state_t *state, uint32_t now_ms) {
         render_heat_indicator(state);
     }
 
-    bool apgar_in_window = apgar_timer_in_checkpoint_window(state->apgar_seconds);
-    if (state->apgar_seconds != ctx.last.apgar_seconds ||
+    /* rising edge on apgar_start (re)starts the clock at 0 */
+    bool apgar_edge = state->apgar_start && !ctx.last.apgar_start;
+    if (apgar_edge) {
+        ctx.apgar_running  = true;
+        ctx.apgar_start_ms = now_ms;
+    }
+
+    uint32_t apgar_elapsed_s = ctx.apgar_running
+        ? (uint32_t)(now_ms - ctx.apgar_start_ms) / 1000
+        : 0;
+    bool apgar_in_window = apgar_timer_in_checkpoint_window(apgar_elapsed_s);
+    if (apgar_edge ||
+        apgar_elapsed_s != ctx.last_apgar_elapsed_s ||
         (apgar_in_window && warn_changed)) {
-        render_apgar_timer(state, ctx.blink_warn_phase);
+        render_apgar_timer(apgar_elapsed_s, ctx.blink_warn_phase);
+        ctx.last_apgar_elapsed_s = apgar_elapsed_s;
     }
 
     ctx.last = *state;

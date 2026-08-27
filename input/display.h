@@ -42,8 +42,13 @@ typedef struct {
     bool         alarm;              /* red bell (urgent) */
     uint8_t      heater_percent;     /* 0..100 PID output */
     baby_state_t baby;               /* baby color/expression */
-    uint32_t     apgar_seconds;      /* elapsed time since warming started,
-                                       * shown as MM:SS (capped at 99:59) */
+    bool         apgar_start;        /* momentary trigger (e.g. a push
+                                       * button): a rising edge (re)starts
+                                       * the APGAR MM:SS clock at 0. The
+                                       * display owns the clock itself -
+                                       * caller doesn't compute elapsed
+                                       * time, just pulses this true for
+                                       * one call on button-press. */
 } warmer_display_state_t;
 
 /* Initialize the display layer (calls st7735_init internally

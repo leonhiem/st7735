@@ -33,8 +33,11 @@ Toolchain confirmed: `gcc-arm-none-eabi-10.3-2021.10` + pico-sdk.
 
 It cycles through 10 warmer states, 4 seconds each, then loops - sweeping
 the full heater-power range, both mode icons, all 3 faces, and every
-fault/warning/alarm combination. The APGAR timer runs continuously
-underneath, counting up from boot regardless of which step is showing:
+fault/warning/alarm combination. Underneath, the demo simulates a
+single push-button pulse on `apgar_start` at boot (birth) and then
+leaves the clock running untouched, counting up regardless of which
+step is showing - so the real 1/5/10-minute checkpoints can be watched
+without the 10-step loop (40 s) restarting it along the way:
 
 1. Comfortable, heater idle (0 %)
 2. Comfortable, gentle maintain heat (~35 %)
@@ -76,13 +79,16 @@ for exact coordinates.
 
 The APGAR timer shows elapsed time since warming started so staff can
 see at a glance when the next scheduled APGAR check is due, without a
-separate wall clock. It's a new field on `warmer_display_state_t`
-(`apgar_seconds`, wraps/caps display at `99:59`) — the caller is
-expected to feed it a running elapsed-seconds count; the demo here
-just uses time-since-boot. The digit font ('0'-'9' + ':') is baked the
-same way as the icons/face artwork: rendered with cairo (DejaVu Sans
-Mono Bold, supersampled) into fixed-size glyph cells, then blitted —
-no on-device text layout or font rendering needed.
+separate wall clock. The display owns the clock itself: the state
+struct only carries a momentary trigger, `apgar_start` (a bool) - a
+rising edge (e.g. a push button, wired upstream) (re)starts the clock
+at 0. The caller never computes elapsed time itself; `display.c` tracks
+`now_ms` internally and derives `MM:SS` (capped at `99:59`) from it.
+The demo here simulates the button pulse in `main.c`. The digit font
+('0'-'9' + ':') is baked the same way as the icons/face artwork:
+rendered with cairo (DejaVu Sans Mono Bold, supersampled) into
+fixed-size glyph cells, then blitted — no on-device text layout or font
+rendering needed.
 
 Real APGAR scores are taken at specific checkpoints (1 and 5 minutes
 after birth always, 10 minutes too if the score is still low), not

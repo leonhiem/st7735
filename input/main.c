@@ -198,8 +198,11 @@ int main(void) {
             printf("step %lu: %s\n", (unsigned long)step_index, demo[step_index].name);
         }
 
-        /* render current step */
-        display_update(&demo[step_index].state, now);
+        /* render current step, with a live-counting APGAR clock (elapsed
+           time since boot) laid over whichever demo state is active */
+        warmer_display_state_t state = demo[step_index].state;
+        state.apgar_seconds = now / 1000;
+        display_update(&state, now);
 
         loop_count++;
 

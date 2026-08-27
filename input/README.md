@@ -33,7 +33,8 @@ Toolchain confirmed: `gcc-arm-none-eabi-10.3-2021.10` + pico-sdk.
 
 It cycles through 10 warmer states, 4 seconds each, then loops - sweeping
 the full heater-power range, both mode icons, all 3 faces, and every
-fault/warning/alarm combination:
+fault/warning/alarm combination. The APGAR timer runs continuously
+underneath, counting up from boot regardless of which step is showing:
 
 1. Comfortable, heater idle (0 %)
 2. Comfortable, gentle maintain heat (~35 %)
@@ -61,14 +62,27 @@ the main loop is not being stalled by the display updates.
         │     └── face_bitmaps.h    (baked RGB565, input/art/render_faces.py)
         ├── heat_indicator.c    — resistor-style heater element + heat rays,
         │                         color-coded green..red by heater percent
+        ├── apgar_timer.c       — MM:SS elapsed-time readout below the face
+        │     └── digit_bitmaps.h   (baked RGB565, input/art/render_timer.py)
         ├── gfx.c               — geometric primitives (line, circle, triangle)
         └── st7735.c            — low-level SPI + ST7735 commands
 ```
 
 Layout: a 4-icon column on the left, a dim vertical divider, then the
-heater element + rays centered above the baby's face (the rest of the
-content area). See the top comment in `display.h`/`display.c` for exact
-coordinates.
+heater element + rays centered above the baby's face, and an APGAR
+timer (`MM:SS`, counting up) centered below it in the remaining strip
+down to the bottom edge. See the top comment in `display.h`/`display.c`
+for exact coordinates.
+
+The APGAR timer shows elapsed time since warming started so staff can
+see at a glance when the next scheduled APGAR check is due, without a
+separate wall clock. It's a new field on `warmer_display_state_t`
+(`apgar_seconds`, wraps/caps display at `99:59`) — the caller is
+expected to feed it a running elapsed-seconds count; the demo here
+just uses time-since-boot. The digit font ('0'-'9' + ':') is baked the
+same way as the icons/face artwork: rendered with cairo (DejaVu Sans
+Mono Bold, supersampled) into fixed-size glyph cells, then blitted —
+no on-device text layout or font rendering needed.
 
 The baby figure and status icons used to be drawn procedurally (circles/
 lines/triangles at runtime); both are now pre-rendered offline
@@ -84,7 +98,8 @@ continuously with heater percent — a bitmap can't represent that.
 Once the demo looks good on the PCB:
 
 1. Drop `st7735.c/h`, `gfx.c/h`, `icons.c/h`, `icon_bitmaps.h`,
-   `baby.c/h`, `face_bitmaps.h`, `heat_indicator.c/h`, `display.c/h`
+   `baby.c/h`, `face_bitmaps.h`, `heat_indicator.c/h`,
+   `apgar_timer.c/h`, `digit_bitmaps.h`, `display.c/h`
    into the existing warmer project.
 2. Add the same lines to its `CMakeLists.txt`.
 3. In the warmer's main loop:
@@ -113,7 +128,11 @@ scanning, and 7-segment refresh remain undisturbed.
 The 3 baby-face emoji (`face_bitmaps.h`) are from
 [OpenMoji](https://openmoji.org/) — 😊 U+1F60A, 🥶 U+1F976, 🥵 U+1F975 —
 fetched from `openmoji_src/`, License: CC BY-SA 4.0. The 4 status icons
-(`icon_bitmaps.h`) are original artwork rendered for this project.
+(`icon_bitmaps.h`) are original artwork rendered for this project. The
+APGAR timer digits (`digit_bitmaps.h`) are rendered from the system font
+DejaVu Sans Mono Bold (Bitstream Vera-derived license, permissive,
+redistributable) — only the resulting baked bitmaps are embedded, no
+font file is shipped.
 
 ## Color or orientation wrong?
 

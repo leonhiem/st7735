@@ -15,6 +15,7 @@
 #include "icons.h"
 #include "baby.h"
 #include "heat_indicator.h"
+#include "apgar_timer.h"
 
 /* ---- layout constants ---- */
 #define BG_COLOR              COLOR_BLACK
@@ -42,6 +43,13 @@
 #define BAR_H                 8
 #define RAYS_TOP_Y            27
 #define RAYS_BOT_Y            58      /* just above the face (face top = 60) */
+
+/* APGAR timer (MM:SS), centered below the face and above the bottom edge.
+ * Face bottom sits at FACE_CENTER_Y + 40 = 140; screen bottom is 160,
+ * leaving a 20px band - the digit glyphs are baked at 16px tall
+ * (art/render_timer.py), so this centers with a couple px to spare. */
+#define TIMER_CX              79
+#define TIMER_Y               142
 
 /* ---- blink timing ---- */
 #define BLINK_PERIOD_WARNING_MS  500   /* slow */
@@ -118,6 +126,10 @@ static void render_heat_indicator(const warmer_display_state_t *s) {
                            s->heater_percent, s->heater_failed, BG_COLOR);
 }
 
+static void render_apgar_timer(const warmer_display_state_t *s) {
+    apgar_timer_draw(TIMER_CX, TIMER_Y, s->apgar_seconds, BG_COLOR);
+}
+
 /* ---- public API ---- */
 
 void display_init(void) {
@@ -139,6 +151,7 @@ void display_init(void) {
     render_alarm_icon(&blank, true);
     render_baby(&blank);
     render_heat_indicator(&blank);
+    render_apgar_timer(&blank);
 
     memset(&ctx, 0, sizeof(ctx));
     ctx.initialized       = true;
@@ -189,6 +202,10 @@ void display_update(const warmer_display_state_t *state, uint32_t now_ms) {
     if (state->heater_percent != ctx.last.heater_percent ||
         state->heater_failed  != ctx.last.heater_failed) {
         render_heat_indicator(state);
+    }
+
+    if (state->apgar_seconds != ctx.last.apgar_seconds) {
+        render_apgar_timer(state);
     }
 
     ctx.last = *state;

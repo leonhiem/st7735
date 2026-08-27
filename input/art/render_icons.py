@@ -34,7 +34,7 @@ W = H = 28
 SS = 10
 SW = SH = W * SS
 
-GREY = (0.125, 0.125, 0.125)  # dim, close to black - matches the divider line
+GREY = (0.215, 0.215, 0.215)  # dim grey, a bit more visible than near-black - matches the divider line
 BG = (0, 0, 0)
 
 

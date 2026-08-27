@@ -15,6 +15,7 @@
  *   grey vertical divider   (x = 33)
  *   heater bar + heat rays  (centered above the face)
  *   baby face (emoji)       (centered, a bit below screen middle)
+ *   APGAR timer (MM:SS)     (centered, between the face and the bottom edge)
  */
 #ifndef DISPLAY_H
 #define DISPLAY_H
@@ -41,6 +42,8 @@ typedef struct {
     bool         alarm;              /* red bell (urgent) */
     uint8_t      heater_percent;     /* 0..100 PID output */
     baby_state_t baby;               /* baby color/expression */
+    uint32_t     apgar_seconds;      /* elapsed time since warming started,
+                                       * shown as MM:SS (capped at 99:59) */
 } warmer_display_state_t;
 
 /* Initialize the display layer (calls st7735_init internally

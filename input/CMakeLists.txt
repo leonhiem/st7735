@@ -18,6 +18,8 @@ add_executable(warmer_display_demo
     baby.c
     face_bitmaps.h
     heat_indicator.c
+    apgar_timer.c
+    digit_bitmaps.h
     display.c
 )
 

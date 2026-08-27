@@ -126,8 +126,10 @@ static void render_heat_indicator(const warmer_display_state_t *s) {
                            s->heater_percent, s->heater_failed, BG_COLOR);
 }
 
-static void render_apgar_timer(const warmer_display_state_t *s) {
-    apgar_timer_draw(TIMER_CX, TIMER_Y, s->apgar_seconds, BG_COLOR);
+static void render_apgar_timer(const warmer_display_state_t *s, bool blink_phase) {
+    bool in_window = apgar_timer_in_checkpoint_window(s->apgar_seconds);
+    apgar_timer_draw(TIMER_CX, TIMER_Y, s->apgar_seconds,
+                      in_window && blink_phase, BG_COLOR);
 }
 
 /* ---- public API ---- */
@@ -151,7 +153,7 @@ void display_init(void) {
     render_alarm_icon(&blank, true);
     render_baby(&blank);
     render_heat_indicator(&blank);
-    render_apgar_timer(&blank);
+    render_apgar_timer(&blank, true);
 
     memset(&ctx, 0, sizeof(ctx));
     ctx.initialized       = true;
@@ -204,8 +206,10 @@ void display_update(const warmer_display_state_t *state, uint32_t now_ms) {
         render_heat_indicator(state);
     }
 
-    if (state->apgar_seconds != ctx.last.apgar_seconds) {
-        render_apgar_timer(state);
+    bool apgar_in_window = apgar_timer_in_checkpoint_window(state->apgar_seconds);
+    if (state->apgar_seconds != ctx.last.apgar_seconds ||
+        (apgar_in_window && warn_changed)) {
+        render_apgar_timer(state, ctx.blink_warn_phase);
     }
 
     ctx.last = *state;

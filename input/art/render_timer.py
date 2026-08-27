@@ -10,10 +10,15 @@ Digits share one common baseline (computed from '8') so they don't jitter
 vertically against each other; the colon is centered on its own ink
 extents (the natural place for a clock separator).
 
+Two color variants are baked per glyph: the normal white readout, and a
+"highlight" yellow variant (same yellow as the warning icon's "on"
+state) used to flash the timer around the standard APGAR checkpoints
+(1 min, 5 min, 10 min after birth) - see apgar_timer.c.
+
 Output:
   out/timer_<glyph>_actual.png   -- exact pixel output, upscaled for viewing
   out/timer_contact_sheet.png    -- all glyphs side by side
-  ../digit_bitmaps.h             -- C header with all 11 arrays
+  ../digit_bitmaps.h             -- C header with all 22 arrays
 """
 import os
 import cairo
@@ -24,11 +29,12 @@ COLON_W = 6
 SS = 8
 
 FONT = "DejaVu Sans Mono"
-COLOR = (1.0, 1.0, 1.0)  # bright white on black - easy to retune later
+COLOR_NORMAL    = (1.0, 1.0, 1.0)  # bright white on black - easy to retune later
+COLOR_HIGHLIGHT = (1.0, 0.80, 0.0)  # same yellow as the warning icon's "on" state
 BG = (0, 0, 0)
 
 
-def render_glyph(ch, cell_w):
+def render_glyph(ch, cell_w, color):
     sw, sh = cell_w * SS, DIGIT_H * SS
     surf = cairo.ImageSurface(cairo.FORMAT_ARGB32, sw, sh)
     ctx = cairo.Context(surf)
@@ -50,7 +56,7 @@ def render_glyph(ch, cell_w):
     tx, ty, tw, th, _, _ = ext
     x = (sw - tw) / 2 - tx
 
-    ctx.set_source_rgb(*COLOR)
+    ctx.set_source_rgb(*color)
     ctx.move_to(x, baseline_y)
     ctx.show_text(ch)
 
@@ -61,7 +67,7 @@ def render_glyph(ch, cell_w):
     return bg
 
 
-GLYPHS = {
+GLYPH_CHARS = {
     "digit_0": ("0", DIGIT_W),
     "digit_1": ("1", DIGIT_W),
     "digit_2": ("2", DIGIT_W),
@@ -74,6 +80,12 @@ GLYPHS = {
     "digit_9": ("9", DIGIT_W),
     "digit_colon": (":", COLON_W),
 }
+
+# each base name gets a normal-color array and a "_hi" highlight-color array
+GLYPHS = {}
+for base_name, (ch, w) in GLYPH_CHARS.items():
+    GLYPHS[base_name] = (ch, w, COLOR_NORMAL)
+    GLYPHS[base_name + "_hi"] = (ch, w, COLOR_HIGHLIGHT)
 
 
 def to_rgb565_words(img):
@@ -108,8 +120,8 @@ def main():
 
     header_arrays = {}
     sheet_cells = []
-    for name, (ch, cell_w) in GLYPHS.items():
-        img = render_glyph(ch, cell_w)
+    for name, (ch, cell_w, color) in GLYPHS.items():
+        img = render_glyph(ch, cell_w, color)
         img.resize((cell_w * 10, DIGIT_H * 10), Image.NEAREST).save(f"{outdir}/timer_{name}_actual.png")
         header_arrays[name] = to_rgb565_words(img)
         sheet_cells.append((name, img))
@@ -124,7 +136,7 @@ def main():
     scale = 10
     pad = 8
     cell_h = DIGIT_H * scale + pad + 14
-    sheet_w = sum(w * scale + pad for _, (_, w) in GLYPHS.items()) + pad
+    sheet_w = sum(w * scale + pad for _, (_, w, _) in GLYPHS.items()) + pad
     sheet = Image.new("RGB", (sheet_w, cell_h + pad), (30, 30, 30))
     x = pad
     for name, img in sheet_cells:

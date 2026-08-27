@@ -9,6 +9,12 @@ set(CMAKE_CXX_STANDARD 17)
 
 pico_sdk_init()
 
+# ON by default in this bench-prototype build so the APGAR checkpoint
+# flash (normally at 1/5/10 real minutes) can be previewed in under a
+# minute. Turn OFF (-DAPGAR_FAST_DEMO=OFF) for anything resembling a
+# real deployment.
+option(APGAR_FAST_DEMO "Use seconds instead of minutes for APGAR checkpoints, to preview the flash quickly" ON)
+
 add_executable(warmer_display_demo
     main.c
     st7735.c
@@ -24,6 +30,10 @@ add_executable(warmer_display_demo
 )
 
 target_include_directories(warmer_display_demo PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+
+if(APGAR_FAST_DEMO)
+    target_compile_definitions(warmer_display_demo PRIVATE APGAR_FAST_DEMO=1)
+endif()
 
 target_link_libraries(warmer_display_demo
     pico_stdlib

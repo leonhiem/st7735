@@ -84,6 +84,19 @@ same way as the icons/face artwork: rendered with cairo (DejaVu Sans
 Mono Bold, supersampled) into fixed-size glyph cells, then blitted —
 no on-device text layout or font rendering needed.
 
+Real APGAR scores are taken at specific checkpoints (1 and 5 minutes
+after birth always, 10 minutes too if the score is still low), not
+read continuously - so the readout flashes yellow (same yellow as the
+warning icon) for a 15-second window around each checkpoint, in sync
+with the shared blink timer, as a "score now" cue (`apgar_timer.c`'s
+`apgar_timer_in_checkpoint_window()`). Outside those windows it's a
+plain white elapsed-time readout. `APGAR_FAST_DEMO` (a `CMakeLists.txt`
+option, **ON by default in this bench-prototype build**) shrinks the
+checkpoints from minutes to seconds (10 s/25 s/40 s) so the flash can
+be previewed in under a minute instead of waiting for the real
+intervals - turn it OFF (`-DAPGAR_FAST_DEMO=OFF`) for anything
+resembling a real deployment.
+
 The baby figure and status icons used to be drawn procedurally (circles/
 lines/triangles at runtime); both are now pre-rendered offline
 (`input/art/render_*.py`, cairo + supersampling, or rsvg-convert for the

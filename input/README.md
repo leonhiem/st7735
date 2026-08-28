@@ -73,17 +73,37 @@ the main loop is not being stalled by the display updates.
         │     └── digit_bitmaps.h   (baked RGB565, input/art/render_timer.py)
         ├── text_console.c      — full-screen 21x16 fixed-font ASCII console
         │     └── font_bitmaps.h    (baked RGB565, input/art/render_font.py)
+        ├── cue_icons.c         — thermometer + clock label icons (see below)
+        │     └── cue_icon_bitmaps.h (baked RGB565, input/art/render_cue_icons.py)
         ├── gfx.c               — geometric primitives (line, circle, triangle)
         └── st7735.c            — low-level SPI + ST7735 commands
 ```
 
 Layout: a 4-icon column on the left, a dim vertical divider, then the
-heater element + rays centered above the baby's face, and an APGAR
-timer (`MM:SS`, counting up) centered below it in the remaining strip
-down to the bottom edge. See the top comment in `display.h`/`display.c`
-for exact coordinates. That's `DISPLAY_MODE_GRAPHICAL`; the other mode,
-`DISPLAY_MODE_TEXT`, replaces all of it with a plain character grid -
-see "Text mode" below.
+heater element + rays centered above the baby's face, a dim horizontal
+divider (touching the vertical one, so the two read as one connected
+frame), and an APGAR timer (`MM:SS`, counting up) below it in the
+remaining strip down to the bottom edge. See the top comment in
+`display.h`/`display.c` for exact coordinates. That's
+`DISPLAY_MODE_GRAPHICAL`; the other mode, `DISPLAY_MODE_TEXT`, replaces
+all of it with a plain character grid - see "Text mode" below.
+
+A small thermometer icon sits to the right of the face, a small clock
+icon to the right of the timer (`cue_icons.c`) - plain white, permanent
+labels rather than status indicators, addressing a concern raised once
+the APGAR timer landed: 3 emoji faces (happy/cold/hot) are about
+temperature comfort, which has nothing to do with APGAR (a checkpoint-
+based newborn assessment), so showing both side by side without any
+distinction read as a conceptual mismatch. Rather than removing either
+one, they're now labeled at a glance instead. Deliberately not a reuse
+of `icons.c`'s existing thermometer - that one's "on" state is red with
+a fault-alert badge (an actual sensor problem) and its "off" state is
+tuned to be nearly invisible (a quiet, inactive status) - neither
+reads correctly as a permanent neutral label, so `cue_icons.c` bakes
+its own plain white pair instead. Both fit in the margin either row
+already had spare: the face bitmap's visible circle only fills the
+center of its 80x80 box, and the timer only spans ~46px of its row -
+neither had to shrink.
 
 ## Text mode
 
@@ -173,7 +193,8 @@ Once the demo looks good on the PCB:
 1. Drop `st7735.c/h`, `gfx.c/h`, `icons.c/h`, `icon_bitmaps.h`,
    `baby.c/h`, `face_bitmaps.h`, `heat_indicator.c/h`,
    `apgar_timer.c/h`, `digit_bitmaps.h`, `text_console.c/h`,
-   `font_bitmaps.h`, `display.c/h`
+   `font_bitmaps.h`, `cue_icons.c/h`, `cue_icon_bitmaps.h`,
+   `display.c/h`
    into the existing warmer project.
 2. Add the same lines to its `CMakeLists.txt`.
 3. In the warmer's main loop:
@@ -202,7 +223,8 @@ scanning, and 7-segment refresh remain undisturbed.
 The 3 baby-face emoji (`face_bitmaps.h`) are from
 [OpenMoji](https://openmoji.org/) — 😊 U+1F60A, 🥶 U+1F976, 🥵 U+1F975 —
 fetched from `openmoji_src/`, License: CC BY-SA 4.0. The 4 status icons
-(`icon_bitmaps.h`) are original artwork rendered for this project. The
+(`icon_bitmaps.h`) and the 2 cue icons (`cue_icon_bitmaps.h`) are
+original artwork rendered for this project. The
 APGAR timer digits (`digit_bitmaps.h`) are rendered from the system
 font DejaVu Sans Mono Bold (Bitstream Vera-derived license, permissive,
 redistributable) — only the resulting baked bitmap is embedded, no

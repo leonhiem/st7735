@@ -17,6 +17,7 @@
 #include "heat_indicator.h"
 #include "apgar_timer.h"
 #include "text_console.h"
+#include "cue_icons.h"
 
 /* ---- layout constants ---- */
 #define BG_COLOR              COLOR_BLACK
@@ -34,8 +35,29 @@
 
 #define DIVIDER_X             33      /* grey vertical line, icons | content */
 
+/* 2nd divider: horizontal, between the face row and the APGAR row -
+ * touches the vertical divider at DIVIDER_X, so the two read as one
+ * connected frame rather than a floating stray line. Sits in the 2px
+ * gap between the face's bottom (140) and the timer's top (142). */
+#define DIVIDER2_Y            141
+
 #define FACE_CENTER_X         79
 #define FACE_CENTER_Y         100     /* center, but a bit below screen middle */
+
+/* Thermometer/clock cue icons: plain, neutral, permanent labels (not
+ * status indicators) disambiguating "this row is about temperature"
+ * (the face) from "this row is a clock reading" (the APGAR timer) -
+ * see art/render_cue_icons.py. Positioned in the empty margin to the
+ * right of each row's actual content - the face bitmap's visible
+ * circle only fills the center of its 80x80 box, and the timer only
+ * spans ~46px of its row, leaving room on both without shrinking
+ * either. THERM_CUE overlaps the tail end of the face's 80x80 blit
+ * box, so it's folded into render_baby() rather than drawn separately
+ * - see the comment there. */
+#define THERM_CUE_X            106
+#define THERM_CUE_Y            (FACE_CENTER_Y - CUE_ICON_SIZE / 2)
+#define CLOCK_CUE_X             106
+#define CLOCK_CUE_Y             TIMER_Y
 
 /* heater bar + heat rays, centered above the face */
 #define BAR_CX                79
@@ -133,6 +155,22 @@ static void render_alarm_icon(const warmer_display_state_t *s, bool blink_phase)
 
 static void render_baby(const warmer_display_state_t *s) {
     baby_draw(FACE_CENTER_X, FACE_CENTER_Y, s->baby, BG_COLOR);
+    /* baby_draw() is a full 80x80 blit that overlaps THERM_CUE's
+     * position (see the layout comment above), so redraw the cue
+     * every time the face does or it gets overwritten with black. */
+    cue_icon_thermometer_draw(THERM_CUE_X, THERM_CUE_Y, BG_COLOR);
+}
+
+/* Static graphical-mode frame: the two dividers plus the clock cue -
+ * none of these ever change, but they need repainting whenever the
+ * screen is wiped (display_init(), and re-entering GRAPHICAL mode from
+ * TEXT mode). The thermometer cue is NOT here - it's folded into
+ * render_baby() instead, since it overlaps the face's blit box and
+ * must be redrawn on every face update, not just on a full wipe. */
+static void render_graphical_frame(void) {
+    gfx_vline(DIVIDER_X, 0, ST7735_HEIGHT, COLOR_DIM_GREY);
+    gfx_hline(DIVIDER_X, DIVIDER2_Y, ST7735_WIDTH - DIVIDER_X, COLOR_DIM_GREY);
+    cue_icon_clock_draw(CLOCK_CUE_X, CLOCK_CUE_Y, BG_COLOR);
 }
 
 static void render_heat_indicator(const warmer_display_state_t *s) {
@@ -153,9 +191,7 @@ void display_init(void) {
     st7735_init();
     st7735_fill_screen(BG_COLOR);
 
-    /* static divider between the icon column and the content area - kept
-     * dim/near-black, same grey as an "off" icon, so it stays subtle */
-    gfx_vline(DIVIDER_X, 0, ST7735_HEIGHT, COLOR_DIM_GREY);
+    render_graphical_frame();
 
     /* paint all icons greyed initially */
     warmer_display_state_t blank;
@@ -218,7 +254,7 @@ void display_update(const warmer_display_state_t *state, uint32_t now_ms) {
     if (screen_mode_changed) {
         st7735_fill_screen(BG_COLOR);
         if (state->screen_mode == DISPLAY_MODE_GRAPHICAL) {
-            gfx_vline(DIVIDER_X, 0, ST7735_HEIGHT, COLOR_DIM_GREY);
+            render_graphical_frame();
             render_mode_icon(state);
             render_sensor_icon(state, ctx.blink_warn_phase);
             render_warning_icon(state, ctx.blink_warn_phase);

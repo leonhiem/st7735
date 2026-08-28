@@ -28,6 +28,8 @@ add_executable(warmer_display_demo
     digit_bitmaps.h
     text_console.c
     font_bitmaps.h
+    cue_icons.c
+    cue_icon_bitmaps.h
     display.c
 )
 

@@ -6,19 +6,25 @@ baby's face (this row is about temperature) and a clock next to the
 APGAR timer (this row is a clock reading), so the two rows read as
 clearly different kinds of information at a glance.
 
-Deliberately NOT a reuse of icons.c's existing thermometer (that one's
+Not a reuse of icons.c's existing thermometer's *colors* (that one's
 "on" state is red with a fault-alert badge, meant for an actual sensor
 problem; its "off" state is COLOR_DIM_GREY, tuned to be quiet/inactive
-and nearly invisible at this size). Both would send the wrong signal
-here - this is a plain, permanent, neutral label, not a status
-indicator - so it's rendered fresh in a calm white matching the
-timer's normal (non-flashing) color.
+and nearly invisible at this size) - both would send the wrong signal
+here, this is a plain, permanent, neutral label, not a status
+indicator. But the thermometer's *shape* (capsule + bulb) is reused
+directly from icon_thermometer() in render_icons.py: a first attempt
+at a from-scratch simplified thermometer read as "a small bag" at
+16px - the capsule/bulb silhouette apparently needs the real icon's
+proportions to stay recognizable that small, unlike the clock (simple
+circle + hands held up fine simplified). So the thermometer here is
+bigger (20px, using icons.c's actual path, just recolored and
+rendered without the fault-alert badge) while the clock stays 16px.
 
-16x16 was picked from the real available space: the face bitmap's
-visible circle only fills the center of its 80x80 box (see baby.c),
-leaving ~24px of empty margin to the right before the screen edge -
-plenty for a 16px icon with a couple px to spare. The APGAR timer
-leaves ~25px free to its right for the same reason.
+Both sizes were picked from the real available space: the face
+bitmap's visible circle only fills the center of its 80x80 box (see
+baby.c), leaving ~24px of empty margin to the right before the screen
+edge - room for a 20px icon with a couple px to spare either side. The
+APGAR timer leaves ~25px free to its right for the same reason.
 
 Bold filled shapes, not thin strokes, so unlike the text console font
 anti-aliasing holds up fine at this size (see render_font.py for why
@@ -33,13 +39,14 @@ import os
 import cairo
 from PIL import Image
 
-SIZE = 16
+THERM_SIZE = 20
+CLOCK_SIZE = 16
 SS = 10
 COLOR = (1.0, 1.0, 1.0)  # plain white - neutral label, not a status/alarm color
 
 
-def new_ctx():
-    surf = cairo.ImageSurface(cairo.FORMAT_ARGB32, SIZE * SS, SIZE * SS)
+def new_ctx(size):
+    surf = cairo.ImageSurface(cairo.FORMAT_ARGB32, size * SS, size * SS)
     ctx = cairo.Context(surf)
     ctx.scale(SS, SS)
     ctx.set_operator(cairo.OPERATOR_SOURCE)
@@ -51,70 +58,75 @@ def new_ctx():
     return surf, ctx
 
 
-def finish(surf):
-    hires = Image.frombuffer("RGBA", (SIZE * SS, SIZE * SS), bytes(surf.get_data()), "raw", "BGRA", 0, 1)
-    small = hires.resize((SIZE, SIZE), Image.LANCZOS)
-    bg = Image.new("RGB", (SIZE, SIZE), (0, 0, 0))
+def finish(surf, size):
+    hires = Image.frombuffer("RGBA", (size * SS, size * SS), bytes(surf.get_data()), "raw", "BGRA", 0, 1)
+    small = hires.resize((size, size), Image.LANCZOS)
+    bg = Image.new("RGB", (size, size), (0, 0, 0))
     bg.paste(small, (0, 0), small)
     return bg
 
 
 def make_thermometer():
-    surf, ctx = new_ctx()
-    cx = SIZE / 2
-    stem_w = SIZE * 0.16
-    top_y, bulb_y = SIZE * 0.12, SIZE * 0.68
+    """Same path as icon_thermometer() in render_icons.py (28x28 design
+    size, cx=cy=14, "off"/quiet fill level), just recolored plain white
+    with no fault-alert badge - see the module docstring for why the
+    shape itself (not a simplified redraw) is reused here."""
+    surf, ctx = new_ctx(28)
+    cx, cy = 14, 14
+    stem_w = 4.4
+    top_y, bulb_y = cy - 10, cy + 7
 
     ctx.set_source_rgb(*COLOR)
     ctx.new_sub_path()
     ctx.arc(cx, top_y, stem_w / 2, math.pi, 2 * math.pi)
     ctx.rectangle(cx - stem_w / 2, top_y, stem_w, bulb_y - top_y)
     ctx.fill()
-    ctx.arc(cx, bulb_y, SIZE * 0.2, 0, 2 * math.pi)
+    ctx.arc(cx, bulb_y, 5.6, 0, 2 * math.pi)
     ctx.fill()
 
-    # thin black gap for the capsule outline look
-    inner_w = stem_w * 0.45
+    inner_w = stem_w - 2.2
     ctx.set_source_rgb(0, 0, 0)
     ctx.new_sub_path()
-    ctx.arc(cx, top_y + SIZE * 0.05, inner_w / 2, math.pi, 2 * math.pi)
-    ctx.rectangle(cx - inner_w / 2, top_y + SIZE * 0.05, inner_w, bulb_y - top_y - SIZE * 0.05)
+    ctx.arc(cx, top_y + 1.2, inner_w / 2, math.pi, 2 * math.pi)
+    ctx.rectangle(cx - inner_w / 2, top_y + 1.2, inner_w, bulb_y - top_y - 1.2)
     ctx.fill()
-    ctx.arc(cx, bulb_y, SIZE * 0.12, 0, 2 * math.pi)
+    ctx.arc(cx, bulb_y, 4.0, 0, 2 * math.pi)
     ctx.fill()
 
     ctx.set_source_rgb(*COLOR)
+    fill_top = bulb_y - 3  # "off"/quiet fill level - this is a label, not a live reading
     ctx.new_sub_path()
-    ctx.rectangle(cx - inner_w / 2 + SIZE * 0.02, top_y + SIZE * 0.22,
-                  inner_w - SIZE * 0.04, bulb_y - top_y - SIZE * 0.22)
+    ctx.rectangle(cx - inner_w / 2 + 0.6, fill_top, inner_w - 1.2, bulb_y - fill_top)
     ctx.fill()
-    ctx.arc(cx, bulb_y, SIZE * 0.10, 0, 2 * math.pi)
+    ctx.arc(cx, bulb_y, 3.3, 0, 2 * math.pi)
     ctx.fill()
-    return finish(surf)
+    # no badge - that's icon_thermometer()'s fault-alert overlay, not wanted here
+
+    return finish(surf, 28).resize((THERM_SIZE, THERM_SIZE), Image.LANCZOS)
 
 
 def make_clock():
-    surf, ctx = new_ctx()
-    cx = cy = SIZE / 2
-    r = SIZE / 2 - SIZE * 0.08
+    surf, ctx = new_ctx(CLOCK_SIZE)
+    cx = cy = CLOCK_SIZE / 2
+    r = CLOCK_SIZE / 2 - CLOCK_SIZE * 0.08
 
     ctx.set_source_rgb(*COLOR)
-    ctx.set_line_width(SIZE * 0.11)
+    ctx.set_line_width(CLOCK_SIZE * 0.11)
     ctx.arc(cx, cy, r, 0, 2 * math.pi)
     ctx.stroke()
-    ctx.set_line_width(SIZE * 0.10)
+    ctx.set_line_width(CLOCK_SIZE * 0.10)
     ctx.move_to(cx, cy)
     ctx.line_to(cx, cy - r * 0.55)
     ctx.stroke()
     ctx.move_to(cx, cy)
     ctx.line_to(cx + r * 0.42, cy + r * 0.12)
     ctx.stroke()
-    return finish(surf)
+    return finish(surf, CLOCK_SIZE)
 
 
 ICONS = {
-    "cue_icon_thermometer": make_thermometer,
-    "cue_icon_clock": make_clock,
+    "cue_icon_thermometer": (make_thermometer, THERM_SIZE),
+    "cue_icon_clock": (make_clock, CLOCK_SIZE),
 }
 
 
@@ -134,18 +146,19 @@ def main():
 
     header_arrays = {}
     sheet_cells = []
-    for name, fn in ICONS.items():
+    for name, (fn, size) in ICONS.items():
         img = fn()
-        img.resize((SIZE * 10, SIZE * 10), Image.NEAREST).save(f"{outdir}/{name}_actual.png")
+        img.resize((size * 10, size * 10), Image.NEAREST).save(f"{outdir}/{name}_actual.png")
         header_arrays[name] = to_rgb565_words(img)
-        sheet_cells.append((name, img))
-        print(f"{name}: rendered ({SIZE}x{SIZE}, {SIZE*SIZE*2} bytes)")
+        sheet_cells.append((name, img, size))
+        print(f"{name}: rendered ({size}x{size}, {size*size*2} bytes)")
 
     header_path = os.path.join(os.path.dirname(__file__), "..", "cue_icon_bitmaps.h")
     with open(header_path, "w") as f:
         f.write("#ifndef CUE_ICON_BITMAPS_H\n#define CUE_ICON_BITMAPS_H\n\n#include <stdint.h>\n\n")
         f.write("/* Auto-generated by input/art/render_cue_icons.py - do not edit by hand. */\n\n")
-        f.write(f"#define CUE_ICON_SIZE {SIZE}\n\n")
+        f.write(f"#define THERM_ICON_SIZE {THERM_SIZE}\n")
+        f.write(f"#define CLOCK_ICON_SIZE {CLOCK_SIZE}\n\n")
         for name, words in header_arrays.items():
             f.write(f"const uint16_t {name}[{len(words)}] = {{\n")
             for i in range(0, len(words), 14):
@@ -157,11 +170,13 @@ def main():
 
     scale = 10
     pad = 8
-    cell = SIZE * scale + pad
-    sheet = Image.new("RGB", (cell * len(sheet_cells) + pad, cell + pad), (30, 30, 30))
-    for i, (name, img) in enumerate(sheet_cells):
-        big = img.resize((SIZE * scale, SIZE * scale), Image.NEAREST)
-        sheet.paste(big, (pad + i * cell, pad))
+    x = pad
+    max_h = max(size * scale for _, _, size in sheet_cells) + pad * 2
+    sheet = Image.new("RGB", (sum(size * scale + pad for _, _, size in sheet_cells) + pad, max_h), (30, 30, 30))
+    for name, img, size in sheet_cells:
+        big = img.resize((size * scale, size * scale), Image.NEAREST)
+        sheet.paste(big, (x, pad))
+        x += size * scale + pad
     sheet.save(f"{outdir}/cue_icons_contact_sheet.png")
     print(f"contact sheet: {outdir}/cue_icons_contact_sheet.png")
 

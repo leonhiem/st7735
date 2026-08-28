@@ -7,10 +7,10 @@
 
 void cue_icon_thermometer_draw(int16_t x, int16_t y, uint16_t bg) {
     (void)bg;
-    st7735_draw_bitmap(x, y, CUE_ICON_SIZE, CUE_ICON_SIZE, cue_icon_thermometer);
+    st7735_draw_bitmap(x, y, THERM_ICON_SIZE, THERM_ICON_SIZE, cue_icon_thermometer);
 }
 
 void cue_icon_clock_draw(int16_t x, int16_t y, uint16_t bg) {
     (void)bg;
-    st7735_draw_bitmap(x, y, CUE_ICON_SIZE, CUE_ICON_SIZE, cue_icon_clock);
+    st7735_draw_bitmap(x, y, CLOCK_ICON_SIZE, CLOCK_ICON_SIZE, cue_icon_clock);
 }

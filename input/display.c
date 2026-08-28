@@ -37,9 +37,14 @@
 
 /* 2nd divider: horizontal, between the face row and the APGAR row -
  * touches the vertical divider at DIVIDER_X, so the two read as one
- * connected frame rather than a floating stray line. Sits in the 2px
- * gap between the face's bottom (140) and the timer's top (142). */
-#define DIVIDER2_Y            141
+ * connected frame rather than a floating stray line. Sits ~5px (about
+ * 1mm on this panel) above the timer, inside the face's 80x80 box's
+ * own empty bottom margin (the visible circle stops well above this,
+ * see baby.c) - not in the 2px gap right above the timer, that read as
+ * touching the digits. Being inside the face's box means it has to be
+ * redrawn whenever the face is, so it's folded into render_baby() too
+ * (like THERM_CUE below) rather than drawn once in render_graphical_frame(). */
+#define DIVIDER2_Y            136
 
 #define FACE_CENTER_X         79
 #define FACE_CENTER_Y         100     /* center, but a bit below screen middle */
@@ -54,8 +59,8 @@
  * either. THERM_CUE overlaps the tail end of the face's 80x80 blit
  * box, so it's folded into render_baby() rather than drawn separately
  * - see the comment there. */
-#define THERM_CUE_X            106
-#define THERM_CUE_Y            (FACE_CENTER_Y - CUE_ICON_SIZE / 2)
+#define THERM_CUE_X            105
+#define THERM_CUE_Y            90     /* (100 - 20/2): THERM_ICON_SIZE is 20 */
 #define CLOCK_CUE_X             106
 #define CLOCK_CUE_Y             TIMER_Y
 
@@ -155,21 +160,21 @@ static void render_alarm_icon(const warmer_display_state_t *s, bool blink_phase)
 
 static void render_baby(const warmer_display_state_t *s) {
     baby_draw(FACE_CENTER_X, FACE_CENTER_Y, s->baby, BG_COLOR);
-    /* baby_draw() is a full 80x80 blit that overlaps THERM_CUE's
-     * position (see the layout comment above), so redraw the cue
-     * every time the face does or it gets overwritten with black. */
+    /* baby_draw() is a full 80x80 blit that overlaps both THERM_CUE and
+     * DIVIDER2_Y (see the layout comments above), so redraw them every
+     * time the face does or they get overwritten with black. */
     cue_icon_thermometer_draw(THERM_CUE_X, THERM_CUE_Y, BG_COLOR);
+    gfx_hline(DIVIDER_X, DIVIDER2_Y, ST7735_WIDTH - DIVIDER_X, COLOR_DIM_GREY);
 }
 
-/* Static graphical-mode frame: the two dividers plus the clock cue -
- * none of these ever change, but they need repainting whenever the
- * screen is wiped (display_init(), and re-entering GRAPHICAL mode from
- * TEXT mode). The thermometer cue is NOT here - it's folded into
- * render_baby() instead, since it overlaps the face's blit box and
- * must be redrawn on every face update, not just on a full wipe. */
+/* Static graphical-mode frame: the vertical divider plus the clock cue -
+ * neither ever changes, but they need repainting whenever the screen is
+ * wiped (display_init(), and re-entering GRAPHICAL mode from TEXT mode).
+ * The horizontal divider and thermometer cue are NOT here - both are
+ * folded into render_baby() instead, since they overlap the face's blit
+ * box and must be redrawn on every face update, not just on a full wipe. */
 static void render_graphical_frame(void) {
     gfx_vline(DIVIDER_X, 0, ST7735_HEIGHT, COLOR_DIM_GREY);
-    gfx_hline(DIVIDER_X, DIVIDER2_Y, ST7735_WIDTH - DIVIDER_X, COLOR_DIM_GREY);
     cue_icon_clock_draw(CLOCK_CUE_X, CLOCK_CUE_Y, BG_COLOR);
 }
 

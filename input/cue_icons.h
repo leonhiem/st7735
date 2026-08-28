@@ -6,14 +6,15 @@
  * art/render_cue_icons.py for the full rationale.
  *
  * Unlike icons.h's status icons, these have no on/off state - they're
- * plain labels, not indicators.
+ * plain labels, not indicators. They're also two different sizes (the
+ * thermometer's capsule+bulb shape needs to be bigger to stay
+ * recognizable than the clock's simpler circle+hands does) - callers
+ * don't need to know either size, just where the top-left goes.
  */
 #ifndef CUE_ICONS_H
 #define CUE_ICONS_H
 
 #include <stdint.h>
-
-#define CUE_ICON_SIZE 16
 
 /* Draw at (x, y) = top-left. `bg` is unused (bitmap is full-bleed) but
  * kept for call-site symmetry with the other render_*() helpers. */

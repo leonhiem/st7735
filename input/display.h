@@ -11,7 +11,7 @@
  * Two display modes, selected by `screen_mode` on the state struct:
  *
  *   DISPLAY_MODE_GRAPHICAL (0, default) - the warmer UI below.
- *   DISPLAY_MODE_TEXT      (1)          - a full-screen 21x20 fixed-font
+ *   DISPLAY_MODE_TEXT      (1)          - a full-screen 21x16 fixed-font
  *                                         ASCII console, see `text` below
  *                                         and text_console.h.
  *

@@ -71,7 +71,7 @@ the main loop is not being stalled by the display updates.
         │                         color-coded green..red by heater percent
         ├── apgar_timer.c       — MM:SS elapsed-time readout below the face
         │     └── digit_bitmaps.h   (baked RGB565, input/art/render_timer.py)
-        ├── text_console.c      — full-screen 21x20 fixed-font ASCII console
+        ├── text_console.c      — full-screen 21x16 fixed-font ASCII console
         │     └── font_bitmaps.h    (baked RGB565, input/art/render_font.py)
         ├── gfx.c               — geometric primitives (line, circle, triangle)
         └── st7735.c            — low-level SPI + ST7735 commands
@@ -96,11 +96,13 @@ demo and in picoos once re-imported - leaves it zero-initialized and
 keeps getting today's graphical UI unchanged. This mirrors how
 `apgar_start` was added: purely additive, no existing behavior moves.
 
-The text console is a 21-column x 20-row grid of a baked 6x8 monospace
-font (`font_bitmaps.h`, full printable ASCII 32-126, same cairo +
-supersampling pipeline as the APGAR digits - see the size/legibility
-tradeoff notes in `art/render_font.py`). It's driven by a small
-cursor-addressed command set, not a framebuffer the caller fills in:
+The text console is a 21-column x 16-row grid of a baked 6x10 bitmap
+font (`font_bitmaps.h`, full printable ASCII 32-126) - transcribed
+pixel-for-pixel from a real hand-drawn bitmap font (`art/fonts/6x10.bdf`,
+the classic xterm/X11 "fixed" font), not rendered from a vector font
+like the rest of the artwork - see `art/render_font.py` for why that
+distinction matters at 6px wide. It's driven by a small cursor-addressed
+command set, not a framebuffer the caller fills in:
 
 ```c
 state.text.cmd = TEXT_CMD_CLEAR;   // or SEEK or WRITE
@@ -110,7 +112,7 @@ strncpy(state.text.line, "Heater: 42 %", TEXT_COLS);
 ```
 
 - `TEXT_CMD_CLEAR` - wipes the screen, cursor back to row 0.
-- `TEXT_CMD_SEEK` - moves the cursor to `.row` (0..19), no drawing.
+- `TEXT_CMD_SEEK` - moves the cursor to `.row` (0..15), no drawing.
 - `TEXT_CMD_WRITE` - blits `.line` at the cursor's row (blank-padded
   to 21 columns, so a shorter line fully erases a longer previous one),
   then advances the cursor by one row - so printing several lines in a
@@ -201,10 +203,18 @@ The 3 baby-face emoji (`face_bitmaps.h`) are from
 [OpenMoji](https://openmoji.org/) — 😊 U+1F60A, 🥶 U+1F976, 🥵 U+1F975 —
 fetched from `openmoji_src/`, License: CC BY-SA 4.0. The 4 status icons
 (`icon_bitmaps.h`) are original artwork rendered for this project. The
-APGAR timer digits (`digit_bitmaps.h`) and the text-console font
-(`font_bitmaps.h`) are rendered from the system font DejaVu Sans Mono
-Bold (Bitstream Vera-derived license, permissive, redistributable) —
-only the resulting baked bitmaps are embedded, no font file is shipped.
+APGAR timer digits (`digit_bitmaps.h`) are rendered from the system
+font DejaVu Sans Mono Bold (Bitstream Vera-derived license, permissive,
+redistributable) — only the resulting baked bitmap is embedded, no
+font file is shipped. The text-console font (`font_bitmaps.h`) is
+instead transcribed pixel-for-pixel from `art/fonts/6x10.bdf`, the X11
+"misc-fixed" family's 6x10 face (the classic xterm default font) —
+its own embedded `COPYRIGHT` property reads "Public domain terminal
+emulator font. Share and enjoy." Two earlier attempts baked this font
+from DejaVu Sans Mono the same way as the digits (bold, then regular,
+anti-aliased or thresholded); both read as ragged/blurry at 6px wide
+compared to a real hand-drawn pixel font — see `art/render_font.py`
+for the full story and why the fix wasn't anti-aliasing.
 
 ## Color or orientation wrong?
 

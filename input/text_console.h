@@ -2,7 +2,7 @@
  * text_console.h - Full-screen fixed-font ASCII text console.
  *
  * A second display mode alongside the graphical warmer UI: a plain
- * 21x20 character grid (6x8 baked font, see art/render_font.py),
+ * 21x16 character grid (6x10 baked font, see art/render_font.py),
  * driven by row-addressed commands (clear / seek / write) rather than
  * a persistent framebuffer - display.c owns the cursor row and
  * dispatches commands from warmer_display_state_t.text into these
@@ -13,11 +13,13 @@
 
 #include <stdint.h>
 
-/* 128 / FONT_W = 21 cols, 160 / FONT_H = 20 rows (font_bitmaps.h's
- * FONT_W/FONT_H are 6x8) - fits the screen exactly with 2px to spare
- * on the right, none top-to-bottom. */
+/* 128 / FONT_W = 21 cols, 160 / FONT_H = 16 rows (font_bitmaps.h's
+ * FONT_W/FONT_H are 6x10) - fits the screen exactly, 2px to spare on
+ * the right, none top-to-bottom. 10px tall (up from an initial 8px)
+ * makes the glyphs noticeably rounder/clearer at no cost to line
+ * width - see the design discussion. */
 #define TEXT_COLS 21
-#define TEXT_ROWS 20
+#define TEXT_ROWS 16
 
 /* Clear the whole screen to `bg`. Does not touch the cursor row -
  * callers (display.c) reset that themselves alongside this. */

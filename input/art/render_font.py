@@ -1,0 +1,176 @@
+#!/usr/bin/env python3
+"""
+render_font.py - Render a fixed 6x8 monospace ASCII font as pre-baked,
+anti-aliased bitmaps (cairo, supersampled), same pipeline as
+render_icons.py / render_faces.py / render_timer.py.
+
+Full printable ASCII (32 '/space/' .. 126 '~', 95 glyphs) baked into
+fixed-size 6x8 cells for text_console.c to blit without any on-device
+font rendering or text layout - it just looks up font_bitmaps[ch - 32]
+and blits.
+
+Sizing: a naive "size the font to the cell, baseline off a capital"
+approach clips descenders (g/j/p/q/y) badly at 8px tall - see the
+design discussion. Instead we measure real ink extents: cap height
+from "8H" and descender depth from "gpqy", scale the font so the two
+stacked fit the cell with a small margin, then position the shared
+baseline from that - not off the font's own ascent/descent metrics,
+which for DejaVu reserve extra headroom for accents we don't render
+here and would shrink everything needlessly.
+
+Thresholded, not anti-aliased: an anti-aliased glyph (supersample +
+Lanczos downsample, kept as smooth gray edges - what render_timer.py
+does at 10x16) reads as blurry rather than smooth once a stroke is
+only ~1px wide, which is normal at 6x8. Real gray edge pixels also
+pick up a slight color tint on RGB565 (green gets 64 levels, red/blue
+only 32, so a "neutral" gray doesn't quantize evenly across channels).
+So after downsampling we threshold to pure black/white - a true 1-bit
+pixel font, the same approach small-OLED UIs use for exactly this
+reason. THRESHOLD=90 was picked by eye: lower gets blobby (70), higher
+starts breaking strokes apart / dropping pixels (130+, see the digits
+and '&' at 150) - see the design discussion for the comparison sheets.
+
+Output:
+  out/font_contact_sheet.png  -- all 95 glyphs, upscaled for viewing
+  ../font_bitmaps.h           -- C header, one const uint16_t[FONT_W*FONT_H]
+                                  array per glyph, indexed by (ch - 32)
+"""
+import os
+import cairo
+from PIL import Image
+
+FONT_W, FONT_H = 6, 8
+SS = 8
+FIRST_CHAR = 32   # ' '
+LAST_CHAR = 126   # '~'
+
+FONT = "DejaVu Sans Mono"
+COLOR = (1.0, 1.0, 1.0)  # white on black, matches the normal APGAR digit style
+BG = (0, 0, 0)
+THRESHOLD = 90  # 0-255 luminance cutoff for the 1-bit pass, see docstring
+
+SW, SH = FONT_W * SS, FONT_H * SS
+
+
+def make_surface():
+    surf = cairo.ImageSurface(cairo.FORMAT_ARGB32, SW, SH)
+    ctx = cairo.Context(surf)
+    ctx.select_font_face(FONT, cairo.FONT_SLANT_NORMAL, cairo.FONT_WEIGHT_BOLD)
+    return surf, ctx
+
+
+def find_size_and_baseline():
+    """Scale + position the font from real ink extents (cap height +
+    descender depth), not the font's own ascent/descent metrics."""
+    _, ctx = make_surface()
+    ctx.set_font_size(100)
+    _, ry, _, rh, _, _ = ctx.text_extents("8H")
+    cap_h = -ry
+    _, ry2, _, rh2, _, _ = ctx.text_extents("gpqy")
+    desc = ry2 + rh2
+    scale = (SH * 0.92) / (cap_h + desc)
+    size = 100 * scale
+
+    ctx.set_font_size(size)
+    _, ry, _, rh, _, _ = ctx.text_extents("8H")
+    cap_h = -ry
+    _, ry2, _, rh2, _, _ = ctx.text_extents("gpqy")
+    desc = ry2 + rh2
+    top_margin = (SH - (cap_h + desc)) / 2
+    baseline_y = top_margin + cap_h
+    return size, baseline_y
+
+
+FONT_SIZE, BASELINE_Y = find_size_and_baseline()
+
+
+def render_glyph(ch):
+    surf, ctx = make_surface()
+    ctx.set_source_rgba(0, 0, 0, 0)
+    ctx.paint()
+    ctx.set_font_size(FONT_SIZE)
+
+    if ch == " ":
+        img_ext = None
+        x = 0
+    else:
+        tx, ty, tw, th, _, _ = ctx.text_extents(ch)
+        x = (SW - tw) / 2 - tx
+
+    ctx.set_source_rgb(*COLOR)
+    ctx.move_to(x, BASELINE_Y)
+    if ch != " ":
+        ctx.show_text(ch)
+
+    hires = Image.frombuffer("RGBA", (SW, SH), bytes(surf.get_data()), "raw", "BGRA", 0, 1)
+    small = hires.resize((FONT_W, FONT_H), Image.LANCZOS)
+    bg = Image.new("RGB", (FONT_W, FONT_H), BG)
+    bg.paste(small, (0, 0), small)
+
+    # threshold to a true 1-bit pixel font - see docstring
+    gray = bg.convert("L")
+    bw = gray.point(lambda p: 255 if p >= THRESHOLD else 0)
+    return Image.merge("RGB", (bw, bw, bw))
+
+
+def to_rgb565_words(img):
+    img = img.convert("RGB")
+    words = []
+    for y in range(img.height):
+        for x in range(img.width):
+            r, g, b = img.getpixel((x, y))
+            words.append(((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3))
+    return words
+
+
+def main():
+    outdir = os.path.join(os.path.dirname(__file__), "out")
+    os.makedirs(outdir, exist_ok=True)
+
+    glyphs = {}
+    for code in range(FIRST_CHAR, LAST_CHAR + 1):
+        ch = chr(code)
+        glyphs[code] = render_glyph(ch)
+
+    header_path = os.path.join(os.path.dirname(__file__), "..", "font_bitmaps.h")
+    with open(header_path, "w") as f:
+        f.write("#ifndef FONT_BITMAPS_H\n#define FONT_BITMAPS_H\n\n#include <stdint.h>\n\n")
+        f.write("/* Auto-generated by input/art/render_font.py - do not edit by hand. */\n\n")
+        f.write(f"#define FONT_W {FONT_W}\n#define FONT_H {FONT_H}\n")
+        f.write(f"#define FONT_FIRST_CHAR {FIRST_CHAR}\n#define FONT_NUM_CHARS {LAST_CHAR - FIRST_CHAR + 1}\n\n")
+        f.write("/* Indexed by (ch - FONT_FIRST_CHAR); ch outside "
+                 "[FONT_FIRST_CHAR, FONT_FIRST_CHAR+FONT_NUM_CHARS) is the\n"
+                 " * caller's responsibility to substitute (see text_console.c). */\n")
+        f.write(f"const uint16_t font_bitmaps[FONT_NUM_CHARS][FONT_W * FONT_H] = {{\n")
+        for code in range(FIRST_CHAR, LAST_CHAR + 1):
+            words = to_rgb565_words(glyphs[code])
+            ch = chr(code)
+            comment = ch if ch not in ("\\", "'") else "\\" + ch
+            f.write(f"    {{ /* 0x{code:02X} '{comment}' */\n")
+            for i in range(0, len(words), 12):
+                row = words[i:i + 12]
+                f.write("        " + ",".join(f"0x{w:04X}" for w in row) + ",\n")
+            f.write("    },\n")
+        f.write("};\n\n")
+        f.write("#endif /* FONT_BITMAPS_H */\n")
+    print(f"C header written: {os.path.abspath(header_path)}")
+
+    # contact sheet: 16 glyphs per row
+    scale = 8
+    per_row = 16
+    pad = 2
+    n = LAST_CHAR - FIRST_CHAR + 1
+    rows = (n + per_row - 1) // per_row
+    cell_w = FONT_W * scale + pad
+    cell_h = FONT_H * scale + pad
+    sheet = Image.new("RGB", (cell_w * per_row + pad, cell_h * rows + pad), (30, 30, 30))
+    for i, code in enumerate(range(FIRST_CHAR, LAST_CHAR + 1)):
+        r, c = divmod(i, per_row)
+        big = glyphs[code].resize((FONT_W * scale, FONT_H * scale), Image.NEAREST)
+        sheet.paste(big, (pad + c * cell_w, pad + r * cell_h))
+    sheet.save(f"{outdir}/font_contact_sheet.png")
+    print(f"contact sheet: {outdir}/font_contact_sheet.png")
+
+
+if __name__ == "__main__":
+    main()

@@ -26,6 +26,8 @@ add_executable(warmer_display_demo
     heat_indicator.c
     apgar_timer.c
     digit_bitmaps.h
+    text_console.c
+    font_bitmaps.h
     display.c
 )
 

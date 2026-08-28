@@ -16,6 +16,7 @@
 #include "baby.h"
 #include "heat_indicator.h"
 #include "apgar_timer.h"
+#include "text_console.h"
 
 /* ---- layout constants ---- */
 #define BG_COLOR              COLOR_BLACK
@@ -71,6 +72,12 @@ typedef struct {
     bool                   apgar_running;
     uint32_t               apgar_start_ms;
     uint32_t               last_apgar_elapsed_s;
+
+    /* Text-mode cursor: which row the next TEXT_CMD_WRITE lands on.
+     * Owned entirely here - the caller only issues CLEAR/SEEK/WRITE
+     * commands (see warmer_display_state_t.text), it never tracks
+     * position itself. */
+    uint8_t                text_cursor_row;
 } display_ctx_t;
 
 static display_ctx_t ctx;
@@ -188,48 +195,103 @@ void display_update(const warmer_display_state_t *state, uint32_t now_ms) {
         alarm_changed = true;
     }
 
-    /* ---- compare state and redraw what changed ---- */
-    if (state->mode != ctx.last.mode) {
-        render_mode_icon(state);
-    }
-    if (state->sensor_connected != ctx.last.sensor_connected ||
-        (!state->sensor_connected && warn_changed)) {
-        render_sensor_icon(state, ctx.blink_warn_phase);
-    }
-    if (state->warning != ctx.last.warning ||
-        (state->warning && warn_changed)) {
-        render_warning_icon(state, ctx.blink_warn_phase);
-    }
-    if (state->alarm != ctx.last.alarm ||
-        (state->alarm && alarm_changed)) {
-        render_alarm_icon(state, ctx.blink_alarm_phase);
-    }
-
-    if (state->baby != ctx.last.baby) {
-        render_baby(state);
-    }
-
-    if (state->heater_percent != ctx.last.heater_percent ||
-        state->heater_failed  != ctx.last.heater_failed) {
-        render_heat_indicator(state);
-    }
-
-    /* rising edge on apgar_start (re)starts the clock at 0 */
+    /* ---- APGAR clock: real elapsed time, kept running no matter which
+     * display mode is on screen (e.g. staff can flip to a text screen
+     * and back without pausing or losing it) ---- */
     bool apgar_edge = state->apgar_start && !ctx.last.apgar_start;
     if (apgar_edge) {
         ctx.apgar_running  = true;
         ctx.apgar_start_ms = now_ms;
     }
-
     uint32_t apgar_elapsed_s = ctx.apgar_running
         ? (uint32_t)(now_ms - ctx.apgar_start_ms) / 1000
         : 0;
     bool apgar_in_window = apgar_timer_in_checkpoint_window(apgar_elapsed_s);
-    if (apgar_edge ||
-        apgar_elapsed_s != ctx.last_apgar_elapsed_s ||
-        (apgar_in_window && warn_changed)) {
-        render_apgar_timer(apgar_elapsed_s, ctx.blink_warn_phase);
-        ctx.last_apgar_elapsed_s = apgar_elapsed_s;
+
+    /* ---- mode switch: wipe the screen and force a full repaint of
+     * whichever mode we're entering. Needed because the dirty-tracking
+     * below only looks at whether individual fields changed since the
+     * last call - right after a switch, fields that happen to have
+     * stayed the same would otherwise be (wrongly) treated as "already
+     * on screen", leaving a blank display. ---- */
+    bool screen_mode_changed = state->screen_mode != ctx.last.screen_mode;
+    if (screen_mode_changed) {
+        st7735_fill_screen(BG_COLOR);
+        if (state->screen_mode == DISPLAY_MODE_GRAPHICAL) {
+            gfx_vline(DIVIDER_X, 0, ST7735_HEIGHT, COLOR_DIM_GREY);
+            render_mode_icon(state);
+            render_sensor_icon(state, ctx.blink_warn_phase);
+            render_warning_icon(state, ctx.blink_warn_phase);
+            render_alarm_icon(state, ctx.blink_alarm_phase);
+            render_baby(state);
+            render_heat_indicator(state);
+            render_apgar_timer(apgar_elapsed_s, ctx.blink_warn_phase);
+            ctx.last_apgar_elapsed_s = apgar_elapsed_s;
+        } else {
+            ctx.text_cursor_row = 0;
+        }
+    }
+
+    if (state->screen_mode == DISPLAY_MODE_TEXT) {
+        bool cmd_pending = state->text.seq != ctx.last.text.seq;
+        if (cmd_pending) {
+            switch (state->text.cmd) {
+            case TEXT_CMD_CLEAR:
+                text_console_clear(BG_COLOR);
+                ctx.text_cursor_row = 0;
+                break;
+            case TEXT_CMD_SEEK:
+                ctx.text_cursor_row = (state->text.row < TEXT_ROWS)
+                                       ? state->text.row : (TEXT_ROWS - 1);
+                break;
+            case TEXT_CMD_WRITE:
+                text_console_write_row(ctx.text_cursor_row, state->text.line, BG_COLOR);
+                if (ctx.text_cursor_row + 1 < TEXT_ROWS) ctx.text_cursor_row++;
+                break;
+            case TEXT_CMD_NONE:
+            default:
+                break;
+            }
+        }
+        ctx.last = *state;
+        return;
+    }
+
+    /* ---- GRAPHICAL mode: dirty-tracked redraw of whatever changed.
+     * Skipped the same tick screen_mode_changed fired, since that
+     * already painted everything fresh above. ---- */
+    if (!screen_mode_changed) {
+        if (state->mode != ctx.last.mode) {
+            render_mode_icon(state);
+        }
+        if (state->sensor_connected != ctx.last.sensor_connected ||
+            (!state->sensor_connected && warn_changed)) {
+            render_sensor_icon(state, ctx.blink_warn_phase);
+        }
+        if (state->warning != ctx.last.warning ||
+            (state->warning && warn_changed)) {
+            render_warning_icon(state, ctx.blink_warn_phase);
+        }
+        if (state->alarm != ctx.last.alarm ||
+            (state->alarm && alarm_changed)) {
+            render_alarm_icon(state, ctx.blink_alarm_phase);
+        }
+
+        if (state->baby != ctx.last.baby) {
+            render_baby(state);
+        }
+
+        if (state->heater_percent != ctx.last.heater_percent ||
+            state->heater_failed  != ctx.last.heater_failed) {
+            render_heat_indicator(state);
+        }
+
+        if (apgar_edge ||
+            apgar_elapsed_s != ctx.last_apgar_elapsed_s ||
+            (apgar_in_window && warn_changed)) {
+            render_apgar_timer(apgar_elapsed_s, ctx.blink_warn_phase);
+            ctx.last_apgar_elapsed_s = apgar_elapsed_s;
+        }
     }
 
     ctx.last = *state;

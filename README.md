@@ -1,5 +1,7 @@
 # ST7735 LCD Driver for RP2040
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
 Simple driver for 1.8" ST7735 LCD (128x160 portrait) connected to Raspberry Pi Pico (RP2040).
 
 ## Hardware Connections

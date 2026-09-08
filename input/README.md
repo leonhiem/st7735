@@ -238,6 +238,14 @@ anti-aliased or thresholded); both read as ragged/blurry at 6px wide
 compared to a real hand-drawn pixel font — see `art/render_font.py`
 for the full story and why the fix wasn't anti-aliasing.
 
+## License
+
+This project's code is licensed under the [MIT License](../LICENSE). The bundled third-party
+art keeps its own license, separate from the code: the OpenMoji-derived face bitmaps (CC BY-SA
+4.0), the DejaVu Sans Mono Bold-derived APGAR digits (Bitstream Vera-derived license,
+permissive), and the X11 misc-fixed-derived text-console font (public domain, per its own
+`COPYRIGHT` property) — see "Artwork attribution" above for details on each.
+
 ## Color or orientation wrong?
 
 In `st7735.c`, the `MADCTL` value is currently `0xC0` (matches the

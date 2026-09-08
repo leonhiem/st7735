@@ -160,6 +160,11 @@ The bitmaps in `emoji_bitmaps_real.h` are from [OpenMoji](https://openmoji.org/)
 License: CC BY-SA 4.0 — free to use with attribution. `preview_happy.png`, `preview_cold.png`
 and `preview_hot.png` show how they look before flashing.
 
+## License
+
+This project's code is licensed under the [MIT License](LICENSE). The OpenMoji-derived bitmap
+artwork noted above keeps its own CC BY-SA 4.0 license, separate from the code.
+
 ## Memory Usage
 
 The procedural emoji approach saves significant flash compared to storing bitmaps:
